@@ -1,0 +1,240 @@
+<div class="app-container">
+  <!-- Header -->
+  <header class="app-header">
+    <div class="brand">
+      <span class="logo-icon">🔗</span>
+      <div>
+        <h1>ShortLink</h1>
+        <p class="tagline">Production-grade, scalable URL Shortener platform</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Section 1: Create Short URL -->
+  <section class="card shorten-card">
+    <div class="card-header">
+      <h2>Shorten a Long Link</h2>
+      <p>Transform long, cumbersome web links into concise, fast-redirecting short codes.</p>
+    </div>
+
+    <form [formGroup]="urlForm" (ngSubmit)="onShortenUrl()" class="shorten-form">
+      <div class="form-row">
+        <!-- Original URL Input -->
+        <div class="form-group flex-2">
+          <label for="originalUrl">Destination URL <span class="required">*</span></label>
+          <input
+            id="originalUrl"
+            type="url"
+            formControlName="originalUrl"
+            placeholder="https://example.com/very/long/product/link"
+            [class.invalid]="urlForm.get('originalUrl')?.invalid && urlForm.get('originalUrl')?.touched"
+          />
+          <span
+            class="field-error"
+            *ngIf="urlForm.get('originalUrl')?.invalid && urlForm.get('originalUrl')?.touched"
+          >
+            Please provide a valid URL starting with http:// or https://
+          </span>
+        </div>
+
+        <!-- Optional Expiration Date -->
+        <div class="form-group flex-1">
+          <label for="expiresAt">Expiration Date (Optional)</label>
+          <input
+            id="expiresAt"
+            type="datetime-local"
+            formControlName="expiresAt"
+          />
+        </div>
+
+        <!-- Submit Button -->
+        <div class="form-group flex-submit">
+          <button type="submit" class="btn btn-primary" [disabled]="loading">
+            <span *ngIf="loading" class="spinner"></span>
+            {{ loading ? 'Shortening...' : 'Shorten URL' }}
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <!-- Error Alert -->
+    <div class="alert alert-danger" *ngIf="errorMessage">
+      <strong>Error:</strong> {{ errorMessage }}
+    </div>
+
+    <!-- Generated URL Result Card -->
+    <div class="result-box" *ngIf="generatedUrl">
+      <div class="result-details">
+        <span class="result-label">Generated Short Link:</span>
+        <a [href]="generatedUrl.shortUrl" target="_blank" class="result-link">
+          {{ generatedUrl.shortUrl }}
+        </a>
+      </div>
+      <div class="result-actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="copyToClipboard(generatedUrl.shortUrl)"
+        >
+          {{ copySuccess ? '✓ Copied!' : 'Copy' }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline"
+          (click)="openUrl(generatedUrl.shortUrl)"
+        >
+          Open Link ↗
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 2: URL List -->
+  <section class="card list-card">
+    <div class="card-header list-header">
+      <div>
+        <h2>Shortened URLs Directory</h2>
+        <p>Real-time analytics and management for active and archived short links.</p>
+      </div>
+      <button class="btn btn-sm btn-outline" (click)="loadUrls(currentPage)">
+        ↻ Refresh
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading-state" *ngIf="tableLoading">
+      <div class="spinner"></div>
+      <p>Loading links directory...</p>
+    </div>
+
+    <!-- Table -->
+    <div class="table-responsive" *ngIf="!tableLoading">
+      <table class="url-table">
+        <thead>
+          <tr>
+            <th>Original Destination</th>
+            <th>Short Code</th>
+            <th>Created</th>
+            <th>Expires</th>
+            <th class="text-center">Clicks</th>
+            <th>Status</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of pagedResult?.items; let i = index">
+            <!-- Original URL -->
+            <td class="col-original">
+              <span class="truncate-text" [title]="item.originalUrl">
+                {{ item.originalUrl }}
+              </span>
+            </td>
+
+            <!-- Short URL -->
+            <td class="col-short">
+              <a [href]="item.shortUrl" target="_blank" class="short-link-anchor">
+                {{ item.shortUrl }}
+              </a>
+            </td>
+
+            <!-- Created Date -->
+            <td class="col-date">
+              {{ item.createdAt | date:'MMM d, y, h:mm a' }}
+            </td>
+
+            <!-- Expiration Date -->
+            <td class="col-date">
+              <span *ngIf="item.expiresAt">
+                {{ item.expiresAt | date:'MMM d, y, h:mm a' }}
+              </span>
+              <span *ngIf="!item.expiresAt" class="text-muted">Never</span>
+            </td>
+
+            <!-- Click Count -->
+            <td class="text-center col-clicks">
+              <span class="click-badge">
+                {{ item.clickCount | number }}
+              </span>
+            </td>
+
+            <!-- Status -->
+            <td class="col-status">
+              <span *ngIf="!item.isActive" class="status-badge status-inactive">
+                Deactivated
+              </span>
+              <span *ngIf="item.isActive && isExpired(item.expiresAt)" class="status-badge status-expired">
+                Expired
+              </span>
+              <span *ngIf="item.isActive && !isExpired(item.expiresAt)" class="status-badge status-active">
+                Active
+              </span>
+            </td>
+
+            <!-- Actions -->
+            <td class="text-center col-actions">
+              <div class="action-btn-group">
+                <button
+                  type="button"
+                  class="btn-icon"
+                  title="Copy Short URL"
+                  (click)="copyToClipboard(item.shortUrl, i)"
+                >
+                  {{ tableCopyIndex === i ? '✓' : '📋' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn-icon"
+                  title="Open in new tab"
+                  (click)="openUrl(item.shortUrl)"
+                >
+                  ↗
+                </button>
+                <button
+                  type="button"
+                  class="btn-icon btn-icon-danger"
+                  title="Deactivate Link"
+                  [disabled]="!item.isActive"
+                  (click)="deactivateUrl(item.shortCode)"
+                >
+                  ✕
+                </button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Empty State -->
+          <tr *ngIf="pagedResult?.items?.length === 0">
+            <td colspan="7" class="empty-state">
+              No shortened URLs created yet. Use the form above to generate your first link!
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination-footer" *ngIf="pagedResult && pagedResult.totalPages > 1">
+      <span class="pagination-info">
+        Page {{ pagedResult.pageNumber }} of {{ pagedResult.totalPages }} ({{ pagedResult.totalCount }} total links)
+      </span>
+      <div class="pagination-buttons">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline"
+          [disabled]="!pagedResult.hasPreviousPage"
+          (click)="loadUrls(currentPage - 1)"
+        >
+          ← Previous
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-outline"
+          [disabled]="!pagedResult.hasNextPage"
+          (click)="loadUrls(currentPage + 1)"
+        >
+          Next →
+        </button>
+      </div>
+    </div>
+  </section>
+</div>
