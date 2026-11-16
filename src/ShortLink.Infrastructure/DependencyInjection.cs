@@ -61,6 +61,8 @@ public static class DependencyInjection
         // 3. Cache & Utility Services
         services.AddScoped<IUrlCacheService, RedisCacheService>();
         services.AddSingleton<IBase62Service, Base62Service>();
+        services.AddSingleton<IShortCodeGenerator, AutoIncrementShortCodeGenerator>();
+        services.AddSingleton<ISnowflakeIdGenerator>(_ => new SnowflakeIdGenerator(machineId: 1));
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
         return services;
