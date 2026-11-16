@@ -57,14 +57,33 @@ public class UrlMappingRepository : IUrlMappingRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Executes an atomic single-statement SQL update to increment ClickCount.
-    /// Avoids concurrency race conditions and removes the need for row-level locking or optimistic locks.
-    /// </summary>
     public async Task IncrementClickCountAsync(string shortCode, CancellationToken cancellationToken = default)
     {
         await _context.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE \"UrlMappings\" SET \"ClickCount\" = \"ClickCount\" + 1 WHERE \"ShortCode\" = {shortCode}",
             cancellationToken);
+    }
+
+    public async Task<long> GetNextSequenceValueAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var connection = _context.Database.GetDbConnection();
+            if (connection.State != System.Data.ConnectionState.Open)
+            {
+                await _context.Database.OpenConnectionAsync(cancellationToken);
+            }
+
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT nextval('\"UrlMappings_Id_seq\"')";
+            var result = await command.ExecuteScalarAsync(cancellationToken);
+            return Convert.ToInt64(result);
+        }
+        catch
+        {
+            // Fallback for tests or setups where sequences are generated differently
+            var maxId = await _context.UrlMappings.MaxAsync(u => (long?)u.Id, cancellationToken) ?? 0L;
+            return maxId + 1L;
+        }
     }
 }

@@ -1,0 +1,79 @@
+using System.Net.Mime;
+using Microsoft.AspNetCore.Mvc;
+using ShortLink.Application.Common.Interfaces;
+using ShortLink.Application.DTOs;
+
+namespace ShortLink.API.Controllers;
+
+/// <summary>
+/// URL management controller handling creation, retrieval, and deactivation.
+/// </summary>
+public class UrlsController : ApiControllerBase
+{
+    private readonly IUrlShortenerService _urlShortenerService;
+
+    public UrlsController(IUrlShortenerService urlShortenerService)
+    {
+        _urlShortenerService = urlShortenerService;
+    }
+
+    /// <summary>
+    /// Creates a shortened URL from the provided destination URL and optional expiration.
+    /// </summary>
+    /// <param name="request">Payload containing original URL and expiration date.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>HTTP 201 Created with UrlResponseDto.</returns>
+    [HttpPost]
+    [Consumes(MediaTypeNames.Application.Json)]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(typeof(UrlResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateShortUrl(
+        [FromBody] CreateUrlRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _urlShortenerService.CreateShortUrlAsync(request, GetBaseUrl(), cancellationToken);
+        return CreatedAtAction(nameof(GetUrlByShortCode), new { shortCode = result.ShortCode }, result);
+    }
+
+    /// <summary>
+    /// Retrieves detailed metadata for a specific short code.
+    /// </summary>
+    [HttpGet("{shortCode}")]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(typeof(UrlResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetUrlByShortCode(
+        string shortCode,
+        CancellationToken cancellationToken)
+    {
+        var result = await _urlShortenerService.GetUrlByShortCodeAsync(shortCode, GetBaseUrl(), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Retrieves all shortened URLs.
+    /// </summary>
+    [HttpGet]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(typeof(IReadOnlyList<UrlResponseDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAllUrls(CancellationToken cancellationToken)
+    {
+        var result = await _urlShortenerService.GetAllUrlsAsync(GetBaseUrl(), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Deactivates a shortened URL and invalidates its cache.
+    /// </summary>
+    [HttpDelete("{shortCode}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeactivateUrl(
+        string shortCode,
+        CancellationToken cancellationToken)
+    {
+        await _urlShortenerService.DeactivateUrlAsync(shortCode, cancellationToken);
+        return NoContent();
+    }
+}

@@ -21,4 +21,6 @@ public interface IUrlMappingRepository
     Task UpdateAsync(UrlMapping urlMapping, CancellationToken cancellationToken = default);
 
     Task IncrementClickCountAsync(string shortCode, CancellationToken cancellationToken = default);
+
+    Task<long> GetNextSequenceValueAsync(CancellationToken cancellationToken = default);
 }

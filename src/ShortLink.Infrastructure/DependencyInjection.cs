@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ShortLink.Application.Common.Interfaces;
 using ShortLink.Domain.Interfaces;
+using ShortLink.Infrastructure.BackgroundServices;
 using ShortLink.Infrastructure.Cache;
 using ShortLink.Infrastructure.Data;
 using ShortLink.Infrastructure.Data.Repositories;
@@ -64,6 +65,10 @@ public static class DependencyInjection
         services.AddSingleton<IShortCodeGenerator, AutoIncrementShortCodeGenerator>();
         services.AddSingleton<ISnowflakeIdGenerator>(_ => new SnowflakeIdGenerator(machineId: 1));
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+
+        // 4. Click Analytics Asynchronous Bounded Channel & Background Worker
+        services.AddSingleton<IClickAnalyticsQueue, ClickAnalyticsChannel>();
+        services.AddHostedService<ClickAnalyticsBackgroundWorker>();
 
         return services;
     }
