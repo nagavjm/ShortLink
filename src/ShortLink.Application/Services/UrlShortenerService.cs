@@ -10,7 +10,7 @@ namespace ShortLink.Application.Services;
 
 /// <summary>
 /// Primary use-case service orchestrating URL creation, resolution, cache-aside lookups,
-/// and asynchronous click tracking.
+/// cache stampede prevention, and asynchronous click tracking.
 /// </summary>
 public class UrlShortenerService : IUrlShortenerService
 {
@@ -80,46 +80,36 @@ public class UrlShortenerService : IUrlShortenerService
         string shortCode,
         CancellationToken cancellationToken = default)
     {
-        // 1. Fast Path: Check Redis Cache
-        var cachedUrl = await _cacheService.GetOriginalUrlAsync(shortCode, cancellationToken);
-
-        if (cachedUrl != null)
-        {
-            if (string.IsNullOrEmpty(cachedUrl))
+        // Resolve original URL using Cache-Aside with Distributed Lock Stampede Protection
+        var originalUrl = await _cacheService.GetOrSetWithStampedeProtectionAsync(
+            shortCode,
+            async () =>
             {
-                // Negative cache hit (known non-existent or inactive)
-                throw new NotFoundException($"Short link '{shortCode}' was not found.");
-            }
+                var mapping = await _repository.GetByShortCodeAsync(shortCode, cancellationToken);
+                if (mapping == null || !mapping.IsActive)
+                {
+                    return null;
+                }
 
-            // Cache Hit: Enqueue asynchronous click event and return target URL
-            await _clickQueue.EnqueueClickAsync(shortCode, cancellationToken);
-            return cachedUrl;
-        }
+                if (mapping.IsExpired(_dateTimeProvider.UtcNow))
+                {
+                    return null;
+                }
 
-        // 2. Slow Path: Cache Miss - Query PostgreSQL Database
-        var mapping = await _repository.GetByShortCodeAsync(shortCode, cancellationToken);
+                return mapping.OriginalUrl;
+            },
+            DefaultCacheTtl,
+            cancellationToken);
 
-        if (mapping == null || !mapping.IsActive)
+        if (string.IsNullOrEmpty(originalUrl))
         {
-            // Negative caching: Prevent cache penetration attacks on missing keys
-            await _cacheService.SetNegativeCacheAsync(shortCode, NegativeCacheTtl, cancellationToken);
-            throw new NotFoundException($"Short link '{shortCode}' was not found or is inactive.");
+            throw new NotFoundException($"Short link '{shortCode}' was not found, is inactive, or has expired.");
         }
 
-        // 3. Check expiration
-        if (mapping.IsExpired(_dateTimeProvider.UtcNow))
-        {
-            await _cacheService.SetNegativeCacheAsync(shortCode, NegativeCacheTtl, cancellationToken);
-            throw new NotFoundException($"Short link '{shortCode}' has expired.");
-        }
-
-        // 4. Populate Redis Cache for subsequent requests
-        await _cacheService.SetOriginalUrlAsync(shortCode, mapping.OriginalUrl, DefaultCacheTtl, cancellationToken);
-
-        // 5. Enqueue non-blocking click tracking
+        // Enqueue non-blocking click tracking
         await _clickQueue.EnqueueClickAsync(shortCode, cancellationToken);
 
-        return mapping.OriginalUrl;
+        return originalUrl;
     }
 
     public async Task<UrlResponseDto> GetUrlByShortCodeAsync(

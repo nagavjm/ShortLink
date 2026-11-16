@@ -3,6 +3,7 @@ namespace ShortLink.Application.Common.Interfaces;
 /// <summary>
 /// Abstraction for Redis-backed URL caching implementing Cache-Aside pattern,
 /// negative caching, and stampede prevention.
+/// Key format: url:{shortCode}
 /// </summary>
 public interface IUrlCacheService
 {
@@ -27,4 +28,14 @@ public interface IUrlCacheService
     /// preventing repeated DB hits (penetration attack mitigation).
     /// </summary>
     Task SetNegativeCacheAsync(string shortCode, TimeSpan ttl, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cache-Aside with distributed mutex protection against Cache Stampede (Thundering Herd).
+    /// Ensures only one thread hits the database on a cache miss for a hot key.
+    /// </summary>
+    Task<string?> GetOrSetWithStampedeProtectionAsync(
+        string shortCode,
+        Func<Task<string?>> factory,
+        TimeSpan ttl,
+        CancellationToken cancellationToken = default);
 }

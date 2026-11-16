@@ -39,6 +39,31 @@ public class FakeUrlCacheService : IUrlCacheService
         Store[$"url:{shortCode}"] = string.Empty; // Negative cache representation
         return Task.CompletedTask;
     }
+
+    public async Task<string?> GetOrSetWithStampedeProtectionAsync(
+        string shortCode,
+        Func<Task<string?>> factory,
+        TimeSpan ttl,
+        CancellationToken cancellationToken = default)
+    {
+        var cached = await GetOriginalUrlAsync(shortCode, cancellationToken);
+        if (cached != null)
+        {
+            return cached;
+        }
+
+        var result = await factory();
+        if (result != null)
+        {
+            await SetOriginalUrlAsync(shortCode, result, ttl, cancellationToken);
+        }
+        else
+        {
+            await SetNegativeCacheAsync(shortCode, TimeSpan.FromMinutes(5), cancellationToken);
+        }
+
+        return result;
+    }
 }
 
 public class FakeClickAnalyticsQueue : IClickAnalyticsQueue
