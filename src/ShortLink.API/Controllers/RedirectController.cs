@@ -25,7 +25,7 @@ public class RedirectController : ControllerBase
     /// <param name="shortCode">The unique Base62 short code.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>HTTP 302 Found redirect to original destination.</returns>
-    [HttpGet("{shortCode:regex(^[a-zA-Z0-9]{{1,16}}$)}")]
+    [HttpGet(@"{shortCode:regex(^[[a-zA-Z0-9]]{{1,16}}$)}")]
     [ProducesResponseType(StatusCodes.Status302Found)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RedirectToOriginal(

@@ -1,0 +1,22 @@
+{
+  "name": "shortlink-solution",
+  "version": "1.0.0",
+  "description": "Production-ready Scalable URL Shortener Platform (.NET 8 + Angular 19)",
+  "scripts": {
+    "start": "powershell -ExecutionPolicy Bypass -File ./start-dev.ps1",
+    "start:api": "dotnet run --project src/ShortLink.API --launch-profile http",
+    "start:client": "npm start --prefix client",
+    "build": "dotnet build ShortLink.sln && npm run build --prefix client",
+    "test": "dotnet test ShortLink.sln"
+  },
+  "keywords": [
+    "url-shortener",
+    "dotnet8",
+    "angular19",
+    "clean-architecture",
+    "redis",
+    "postgresql"
+  ],
+  "author": "",
+  "license": "MIT"
+}

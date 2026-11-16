@@ -8,7 +8,7 @@ import { CreateUrlRequest, PagedResult, UrlResponse } from '../models/url.model'
 })
 export class UrlShortenerService {
   // Configured to match ASP.NET Core API server default HTTP endpoint
-  private readonly baseUrl = 'http://localhost:5000';
+  private readonly baseUrl = 'http://localhost:5050';
   private readonly apiUrl = `${this.baseUrl}/api/urls`;
 
   constructor(private readonly http: HttpClient) {}

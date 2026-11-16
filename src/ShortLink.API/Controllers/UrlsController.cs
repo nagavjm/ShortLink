@@ -71,6 +71,29 @@ public class UrlsController : ApiControllerBase
     }
 
     /// <summary>
+    /// Inspects the live Redis cache entry for a given short code.
+    /// Useful for verifying cache hits, negative cache sentinels, and cache invalidation.
+    /// </summary>
+    [HttpGet("cache/{shortCode}")]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> InspectCache(
+        string shortCode,
+        [FromServices] IUrlCacheService cacheService,
+        CancellationToken cancellationToken)
+    {
+        var cachedUrl = await cacheService.GetOriginalUrlAsync(shortCode, cancellationToken);
+        return Ok(new
+        {
+            ShortCode = shortCode,
+            CacheKey = $"url:{shortCode}",
+            IsCached = cachedUrl != null,
+            IsNegativeCache = cachedUrl == string.Empty,
+            CachedValue = cachedUrl == string.Empty ? "(Negative Cache Sentinel)" : cachedUrl
+        });
+    }
+
+    /// <summary>
     /// Deactivates a shortened URL and invalidates its cache.
     /// </summary>
     [HttpDelete("{shortCode}")]
