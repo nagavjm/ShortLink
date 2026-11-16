@@ -1,5 +1,6 @@
 using System.Net.Mime;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ShortLink.Application.Common.Interfaces;
 using ShortLink.Application.DTOs;
 
@@ -24,10 +25,12 @@ public class UrlsController : ApiControllerBase
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>HTTP 201 Created with UrlResponseDto.</returns>
     [HttpPost]
+    [EnableRateLimiting("UrlCreationPolicy")]
     [Consumes(MediaTypeNames.Application.Json)]
     [Produces(MediaTypeNames.Application.Json)]
     [ProducesResponseType(typeof(UrlResponseDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> CreateShortUrl(
         [FromBody] CreateUrlRequestDto request,
         CancellationToken cancellationToken)

@@ -1,3 +1,7 @@
+using System.Net;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Serilog;
 using ShortLink.API.Middleware;
 using ShortLink.Application;
@@ -43,9 +47,66 @@ builder.Services.AddCors(options =>
     });
 });
 
+// 5. Configure ASP.NET Core Built-in Rate Limiting
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.ContentType = "application/problem+json";
+
+        var retryAfterSeconds = 60;
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            retryAfterSeconds = Math.Max(1, (int)retryAfter.TotalSeconds);
+        }
+
+        context.HttpContext.Response.Headers.RetryAfter = retryAfterSeconds.ToString();
+
+        var problemDetails = new ProblemDetails
+        {
+            Status = StatusCodes.Status429TooManyRequests,
+            Title = "Too Many Requests",
+            Detail = $"Rate limit exceeded. Maximum 100 URL creations per minute per client IP. Please try again after {retryAfterSeconds} seconds.",
+            Instance = context.HttpContext.Request.Path
+        };
+
+        await context.HttpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken: token);
+    };
+
+    // Partitioned rate limiter policy for URL creation: 100 requests per minute per client IP
+    options.AddPolicy("UrlCreationPolicy", httpContext =>
+    {
+        var clientIp = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "unknown_client_ip";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: clientIp,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0 // Reject immediately with 429 when capacity is exceeded
+            });
+    });
+});
+
 var app = builder.Build();
 
-// 5. Middleware Pipeline
+// 6. Security Headers Middleware
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.Append("X-Frame-Options", "DENY");
+    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+    context.Response.Headers.Append("X-XSS-Protection", "0");
+    await next();
+});
+
+// 7. Middleware Pipeline
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
@@ -59,13 +120,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseSerilogRequestLogging();
-
 app.UseHttpsRedirection();
-
 app.UseCors("AllowAngularClient");
 
-app.UseAuthorization();
+// Rate limiting must execute after CORS and before endpoint execution
+app.UseRateLimiter();
 
+app.UseAuthorization();
 app.MapControllers();
 
 try
