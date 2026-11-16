@@ -3,8 +3,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ShortLink.Application.Common.Interfaces;
+using ShortLink.Domain.Interfaces;
 using ShortLink.Infrastructure.Cache;
 using ShortLink.Infrastructure.Data;
+using ShortLink.Infrastructure.Data.Repositories;
 using ShortLink.Infrastructure.Services;
 using StackExchange.Redis;
 
@@ -16,9 +18,9 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // 1. PostgreSQL EF Core DbContext
+        // 1. PostgreSQL EF Core DbContext with Connection Pooling and Resilience
         var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? "Host=localhost;Port=5432;Database=shortlink_db;Username=postgres;Password=postgres";
+            ?? "Host=localhost;Port=5432;Database=shortlink_db;Username=postgres;Password=postgres;Pooling=true;Minimum Pool Size=5;Maximum Pool Size=100;Connection Idle Lifetime=300;";
 
         services.AddDbContext<ShortLinkDbContext>(options =>
         {
@@ -33,6 +35,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ShortLinkDbContext>());
+        services.AddScoped<IUrlMappingRepository, UrlMappingRepository>();
 
         // 2. Redis ConnectionMultiplexer (Singleton as recommended by StackExchange.Redis)
         var redisConnectionString = configuration.GetConnectionString("Redis") ?? "localhost:6379,abortConnect=false";

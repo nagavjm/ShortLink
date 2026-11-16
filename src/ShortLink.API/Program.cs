@@ -2,6 +2,7 @@ using Serilog;
 using ShortLink.API.Middleware;
 using ShortLink.Application;
 using ShortLink.Infrastructure;
+using ShortLink.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -70,6 +71,7 @@ app.MapControllers();
 try
 {
     Log.Information("Starting ShortLink Web API application...");
+    await DatabaseInitializer.MigrateDatabaseAsync(app.Services);
     app.Run();
 }
 catch (Exception ex)
