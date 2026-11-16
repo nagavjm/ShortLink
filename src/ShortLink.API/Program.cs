@@ -1,7 +1,10 @@
 using System.Net;
+using System.Text.Json;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Serilog;
 using ShortLink.API.Middleware;
 using ShortLink.Application;
@@ -10,11 +13,12 @@ using ShortLink.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Configure Serilog structured logging
+// 1. Configure Serilog structured logging with context enrichment
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
-    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .Enrich.WithProperty("Application", "ShortLink.API")
+    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{Application}] {Message:lj} {Properties:j}{NewLine}{Exception}")
     .CreateLogger();
 
 builder.Host.UseSerilog();
@@ -119,14 +123,37 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseSerilogRequestLogging();
+// Serilog structured HTTP request logging
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+});
+
 app.UseHttpsRedirection();
 app.UseCors("AllowAngularClient");
 
-// Rate limiting must execute after CORS and before endpoint execution
+// Rate limiting
 app.UseRateLimiter();
 
 app.UseAuthorization();
+
+// 8. Health Check Endpoints
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = WriteHealthCheckResponse
+});
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = WriteHealthCheckResponse
+});
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false // Liveness probe checks process availability only
+});
+
 app.MapControllers();
 
 try
@@ -142,4 +169,28 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+// Formats health check report into structured RFC-style JSON
+static Task WriteHealthCheckResponse(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "application/json";
+
+    var response = new
+    {
+        Status = report.Status.ToString(),
+        TotalDurationMs = report.TotalDuration.TotalMilliseconds,
+        Timestamp = DateTime.UtcNow,
+        Checks = report.Entries.Select(e => new
+        {
+            Component = e.Key,
+            Status = e.Value.Status.ToString(),
+            DurationMs = e.Value.Duration.TotalMilliseconds,
+            Description = e.Value.Description,
+            Data = e.Value.Data
+        })
+    };
+
+    return context.Response.WriteAsync(
+        JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true }));
 }

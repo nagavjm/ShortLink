@@ -8,6 +8,7 @@ using ShortLink.Infrastructure.BackgroundServices;
 using ShortLink.Infrastructure.Cache;
 using ShortLink.Infrastructure.Data;
 using ShortLink.Infrastructure.Data.Repositories;
+using ShortLink.Infrastructure.Health;
 using ShortLink.Infrastructure.Services;
 using StackExchange.Redis;
 
@@ -69,6 +70,11 @@ public static class DependencyInjection
         // 4. Click Analytics Asynchronous Bounded Channel & Background Worker
         services.AddSingleton<IClickAnalyticsQueue, ClickAnalyticsChannel>();
         services.AddHostedService<ClickAnalyticsBackgroundWorker>();
+
+        // 5. System Health Probes (PostgreSQL & Redis)
+        services.AddHealthChecks()
+            .AddCheck<PostgreSqlHealthCheck>("PostgreSQL", tags: new[] { "ready", "db" })
+            .AddCheck<RedisHealthCheck>("Redis", tags: new[] { "ready", "cache" });
 
         return services;
     }
