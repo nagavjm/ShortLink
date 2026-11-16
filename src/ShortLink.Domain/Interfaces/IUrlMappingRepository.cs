@@ -14,6 +14,8 @@ public interface IUrlMappingRepository
 
     Task<IReadOnlyList<UrlMapping>> GetAllAsync(CancellationToken cancellationToken = default);
 
+    Task<(IReadOnlyList<UrlMapping> Items, int TotalCount)> GetPagedAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default);
+
     Task<bool> ExistsAsync(string shortCode, CancellationToken cancellationToken = default);
 
     Task AddAsync(UrlMapping urlMapping, CancellationToken cancellationToken = default);

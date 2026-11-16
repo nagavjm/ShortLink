@@ -134,6 +134,21 @@ public class UrlShortenerService : IUrlShortenerService
         return mappings.Select(m => MapToDto(m, baseUrl)).ToList();
     }
 
+    public async Task<PagedResult<UrlResponseDto>> GetPagedUrlsAsync(
+        int pageNumber,
+        int pageSize,
+        string baseUrl,
+        CancellationToken cancellationToken = default)
+    {
+        pageNumber = Math.Max(1, pageNumber);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var (items, totalCount) = await _repository.GetPagedAsync(pageNumber, pageSize, cancellationToken);
+        var dtos = items.Select(m => MapToDto(m, baseUrl)).ToList();
+
+        return new PagedResult<UrlResponseDto>(dtos, totalCount, pageNumber, pageSize);
+    }
+
     public async Task<bool> DeactivateUrlAsync(
         string shortCode,
         CancellationToken cancellationToken = default)

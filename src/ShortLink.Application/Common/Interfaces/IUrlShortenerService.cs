@@ -15,5 +15,7 @@ public interface IUrlShortenerService
 
     Task<IReadOnlyList<UrlResponseDto>> GetAllUrlsAsync(string baseUrl, CancellationToken cancellationToken = default);
 
+    Task<PagedResult<UrlResponseDto>> GetPagedUrlsAsync(int pageNumber, int pageSize, string baseUrl, CancellationToken cancellationToken = default);
+
     Task<bool> DeactivateUrlAsync(string shortCode, CancellationToken cancellationToken = default);
 }

@@ -52,14 +52,18 @@ public class UrlsController : ApiControllerBase
     }
 
     /// <summary>
-    /// Retrieves all shortened URLs.
+    /// Retrieves a paginated list of all shortened URLs.
+    /// Supports high-volume pagination to prevent memory exhaustion.
     /// </summary>
     [HttpGet]
     [Produces(MediaTypeNames.Application.Json)]
-    [ProducesResponseType(typeof(IReadOnlyList<UrlResponseDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAllUrls(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(PagedResult<UrlResponseDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAllUrls(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
-        var result = await _urlShortenerService.GetAllUrlsAsync(GetBaseUrl(), cancellationToken);
+        var result = await _urlShortenerService.GetPagedUrlsAsync(pageNumber, pageSize, GetBaseUrl(), cancellationToken);
         return Ok(result);
     }
 

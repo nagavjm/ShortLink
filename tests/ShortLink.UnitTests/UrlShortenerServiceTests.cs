@@ -167,4 +167,60 @@ public class UrlShortenerServiceTests
         Assert.False(entity.IsActive);
         Assert.Contains(shortCode, _cacheService.RemovedKeys);
     }
+
+    [Fact]
+    public async Task GetUrlByShortCode_ExistingCode_ReturnsDetailsDto()
+    {
+        const string shortCode = "detail01";
+        var entity = UrlMapping.Create("https://example.com/details", _dateTimeProvider.UtcNow);
+        entity.SetShortCode(shortCode);
+        await _repository.AddAsync(entity);
+
+        var result = await _sut.GetUrlByShortCodeAsync(shortCode, "https://short.link");
+
+        Assert.NotNull(result);
+        Assert.Equal(shortCode, result.ShortCode);
+        Assert.Equal("https://short.link/detail01", result.ShortUrl);
+        Assert.Equal("https://example.com/details", result.OriginalUrl);
+        Assert.True(result.IsActive);
+    }
+
+    [Fact]
+    public async Task GetUrlByShortCode_NonExistent_ThrowsNotFoundException()
+    {
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _sut.GetUrlByShortCodeAsync("missing999", "https://short.link"));
+    }
+
+    [Fact]
+    public async Task DeactivateUrl_NonExistent_ThrowsNotFoundException()
+    {
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _sut.DeactivateUrlAsync("missing999"));
+    }
+
+    [Fact]
+    public async Task GetPagedUrls_ReturnsCorrectPageAndMetadata()
+    {
+        // Add 15 entities
+        for (int i = 1; i <= 15; i++)
+        {
+            var code = $"page_{i:D2}";
+            var entity = UrlMapping.Create($"https://example.com/item/{i}", _dateTimeProvider.UtcNow.AddMinutes(i));
+            entity.SetShortCode(code);
+            await _repository.AddAsync(entity);
+        }
+
+        // Request page 2 with page size 5
+        var result = await _sut.GetPagedUrlsAsync(pageNumber: 2, pageSize: 5, "https://short.link");
+
+        Assert.NotNull(result);
+        Assert.Equal(5, result.Items.Count);
+        Assert.Equal(15, result.TotalCount);
+        Assert.Equal(2, result.PageNumber);
+        Assert.Equal(5, result.PageSize);
+        Assert.Equal(3, result.TotalPages);
+        Assert.True(result.HasPreviousPage);
+        Assert.True(result.HasNextPage);
+    }
 }

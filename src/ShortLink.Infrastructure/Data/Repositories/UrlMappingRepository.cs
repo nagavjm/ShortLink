@@ -39,6 +39,23 @@ public class UrlMappingRepository : IUrlMappingRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<(IReadOnlyList<UrlMapping> Items, int TotalCount)> GetPagedAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.UrlMappings.AsNoTracking();
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(u => u.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
     public async Task<bool> ExistsAsync(string shortCode, CancellationToken cancellationToken = default)
     {
         return await _context.UrlMappings

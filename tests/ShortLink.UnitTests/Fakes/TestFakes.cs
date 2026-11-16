@@ -110,6 +110,17 @@ public class FakeUrlMappingRepository : IUrlMappingRepository
         return Task.FromResult(list);
     }
 
+    public Task<(IReadOnlyList<UrlMapping> Items, int TotalCount)> GetPagedAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var all = ByShortCode.Values.OrderByDescending(u => u.CreatedAt).ToList();
+        var total = all.Count;
+        var paged = all.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+        return Task.FromResult<(IReadOnlyList<UrlMapping> Items, int TotalCount)>((paged, total));
+    }
+
     public Task<bool> ExistsAsync(string shortCode, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(ByShortCode.ContainsKey(shortCode));
